@@ -1,0 +1,419 @@
+---
+title: "Meow"
+author: "Sarah Wood"
+date: "12/15/2021"
+output: 
+  html_document: 
+    theme: journal
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls())
+getwd()
+setwd("C:/Users/sarah/OneDrive/Documents/R/Fall2021/EcologyProject")
+getwd()
+```
+
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+
+# [SETUP]{.ul}
+
+### **Libraries**
+
+> `library(dplyr)`
+>
+> `library(knitr)`
+>
+> `library(tidyr)`
+>
+> `library(ggplot2)`
+>
+> `library(forcats)`
+>
+> `library(inspectdf)`
+
+```{r libraries, include=FALSE}
+library(dplyr)
+library(knitr)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+library(inspectdf)
+library(rmarkdown)
+```
+
+ 
+
+###   **Options for** `str()` **for narrow transcript windows**
+
+```{r str() options, results = 'hide'}
+#setting up str function to a narrow transcript window setting
+options(width = 100, str = strOptions(strict.width = "cut"))
+str(lsfit(1:9,1:9))
+```
+
+ 
+
+ 
+
+### **Compact Checking Function**
+
+> Making a function that can be applied to an object and....
+>
+> 1.  Sense if it's a column, row, or data frame
+>
+> 2.  Applies certain checking functions depending on the result of the previous function
+>
+>     1.  If a `data frame` --> `str`, `colnames`, `rownames`, `dim`, and `class`
+>
+>     2.  If a `row`or `col` --> `table`, `names`, `length`, `class`, and `unique`
+>
+> 3.  Returns the outputs all at once
+
+##### **Establishing the functions**
+
+```{r compact checking function1}
+#making a fnction for checking dataframes
+check_dfsw <- function(x) {
+  str(x)
+  
+  colnames <- colnames(x)
+  rownames <- rownames(x)
+  dims <- dim(x)
+  class <- class(x)
+  
+  output <- list("column names" = colnames, #making a list of outputs bc return() only takes one item
+                 "row names" = rownames, "dimensions" = dims, "class type" = class)
+  return(output) 
+}
+
+#making a function for checking rows or columns or lists
+check_listsw <- function(x) {
+  
+  table <- table(x)
+  names <- names(x)
+  length <- length(x)
+  class <- class(x)
+  unique <- unique(x)
+  
+  output <- list("table" = table, "names" = names, "length" = length, 
+                 "class type" = class, "unique values" = unique)
+  
+  return(output) 
+}
+```
+
+ 
+
+##### **Making a function that that checks data type then does the previous functions**
+
+Based on this:
+
+> `dim(data)`
+>
+> `dim(data$paper_ID)`
+>
+> `dim(data[1,])`
+
+```{r compact checking function2}
+#the function
+checking <- function(x){
+  dimsum <- dim(x)      #determines the dimensions of x and assigns it to dimsum
+  ifelse (((is.null(dimsum) == FALSE) & ((dimsum[1]==1) == FALSE)),   
+          #things that are df only if dimsum has is NOT null
+          # and dimsum's first value (the # of rows) does NOT equal 1 
+          #(meaning not a single row)
+          
+          results <- check_dfsw(x), 
+          #if the above is true = x is df = will do the df checks 
+          #and store results in "results"
+          results <- check_listsw(x)) 
+          #if the above is false = x is row = will do list checks 
+          #and store results in "results"
+  
+  ifelse ((is.null(dimsum) == TRUE), 
+          #meaning: if the dimensions are null = if it's a column
+          results <- check_listsw(x), 
+          #will do the list checks and store results in "results"
+          NA)                         
+          #will do nothing if not a list 
+  return(results) #prints the results
+}
+```
+
+ 
+
+ 
+
+### **Data Loading**
+
+```{r Data Loading, results='hide'}
+data <- read.csv("ecol2021_reconfigured_data.csv", 
+                 sep = ",", 
+                 as.is = TRUE, 
+                 na.strings = "NA", 
+                 row.names = 1, 
+                 fill = TRUE, 
+                 skip = 0) 
+```
+
+ 
+
+ 
+
+ 
+
+# [**DATA FORMATTING**]{.ul}
+
+### **Changing Rownames**
+
+> `data$ID` This column has the IDs of each model. we'll make R use these as row names.
+>
+> 1.  Adding "ID" to all the entries in the `data$ID` column
+>
+> 2.  Assigning the values in the `ID` column to the rownames of `data`
+>
+> 3.  `checking(data)` 
+
+```{r changing rownames, echo=TRUE}
+
+head(rownames(data))
+
+data$ID <- sub("^", "ID", data$ID) #adding "ID" before all entries in data$ID
+rownames(data) <- data$ID #assigning the vaues in the ID column to the rownames
+
+head(rownames(data)) #check. it worked!
+```
+
+### **Cutting off unnecessary columns**
+
+> 1.  Finding which ones we need to remove using `colnames(data)`
+>
+> 2.  Shaving off some unnecessary stuff by replacing the dataset with one that...
+>
+>     -   Exlcudes the `$totals` row (row 563)
+>
+>     -   Retains all columns except ones named `$ID`
+>
+> 3.  Using `dplyr` to select just the columns we want to keep and replace the dataframe with one that just has those columns
+
+```{r cutting the fat, echo=TRUE}
+
+#1
+#colnames(data)
+
+#2
+data <- data[1:562,] 
+data <- data[,!names(data) == "ID"] 
+
+head(colnames(data)) #checking
+tail(rownames(data))
+
+#3
+colnames(data)
+#doing it in a copy just so we get it right before replacing the dataframe
+data2 <- data %>% select(c(1,3,6,8:10,         #types and IDs
+                          17:21,32,35,36,45,  #non crop explanatories
+                          51,54:60,62,63,     #border-related expl.
+                          67:70,              #forest border-related
+                          71:73))             #signif stuff that is misplaced
+    
+# data <- select(data, c(1:8, 17:73)) is another way
+colnames(data2)  #checking 
+rm(data2) #removing because we don't need it anymore
+
+#replacing the dataframe
+data <- data %>% select(c(1,3,6,8:10,         #types and IDs
+                          17:21,32,35,36,45,  #non crop explanatories
+                          51,54:60,62,63,     #border-related expl.
+                          67:70,              #forest border-related
+                          71:73)) 
+```
+
+|                  Group |   Model Characteristic    |             `colname`             | `class` |
+|-----------------------:|:-------------------------:|:---------------------------------:|---------|
+|             Model Type |         Paper ID          |            `paper_ID`             |         |
+|             Model Type |           Model           |           `model_type`            |         |
+|          Response Type | Generalized Response Type |      `resp_type_generalized`      |         |
+|          Response Type |       Result Value        |              `value`              |         |
+|          Response Type |     Result Value type     |           `value_type`            |         |
+|               Strength |        Significant        |             `signif`              |         |
+|               Strength |       "Best" Model        |          `value_isBEST`           |         |
+|               Strength |   "Best" Status Support   |       `value_best_num_var`        |         |
+|       Explanatory Type |   Explanatory Variables   |           `exp_num_var`           |         |
+| Explanatory Type^land^ |     Border type - ANY     |        `exp_isBORDERTYPE`         |         |
+| Explanatory Type^land^ |  Border type - Buckthorn  |      `exp_border_buckthorn`       |         |
+| Explanatory Type^land^ |    Border type - Crops    |     `exp_isBORDERTYPE_crops`      |         |
+| Explanatory Type^land^ |     (crops - alfalfa)     |     `exp_bordertype_alfalfa`      |         |
+| Explanatory Type^land^ |      (crops - corn)       |       `exp_bordertype_corn`       |         |
+| Explanatory Type^land^ |     (crops - canola)      |      `exp_bordertype_canola`      |         |
+| Explanatory Type^land^ |     (crops - cereals)     |     `exp_bordertype_cereals`      |         |
+| Explanatory Type^land^ |     (crops - soybean)     |     `exp_bordertype_soybean`      |         |
+| Explanatory Type^land^ |   (crops - generalized)   | `exp_bordertype_generalizedcrops` |         |
+| Explanatory Type^land^ |   Border type - Grassy    |     `exp_isBORDERTYPE_grass`      |         |
+| Explanatory Type^land^ |   Border type - Forest    |     `exp_isBORDERTYPE_forest`     |         |
+| Explanatory Type^land^ |    (forest - distance)    |     `exp_isBORDERTYPE_forest`     |         |
+| Explanatory Type^land^ |   (forest - proportion)   | `exp_bordertype_forestproportion` |         |
+| Explanatory Type^land^ |   (forest - diversity)    | `exp_bordertype_forestdiversity`  |         |
+| Explanatory Type^land^ |    (forest - distance)    |  `exp_bordertype_forestdistance`  |         |
+| Explanatory Type^land^ |     Field Parameters      |           `exp_isFIELD`           |         |
+|       Explanatory Type |           Scale           |           `exp_isSCALE`           |         |
+|       Explanatory Type |           Time            |           `exp_isTIME`            |         |
+|       Explanatory Type |            SBA            |            `exp_isSBA`            |         |
+|       Explanatory Type |       SBA Predators       |           `exp_isPRED`            |         |
+|       Explanatory Type |        Null or NA         |            `exp_isNA`             |         |
+|       Explanatory Type |           Other           |           `exp_isOTHER`           |         |
+
+```{r cutting the fat}
+    
+
+
+#gonna relocate the columns at the end to the beginning
+    data <- relocate(data, c("value_isBEST", "value_best_num_var", "signif"), .before = exp_isNA)
+    data <- relocate(data, value_best_num_var, .before = value_isBEST)
+    #^ this is dplyr again
+    checking(data) #sexy. cols 11 through 65 are now just binary
+
+
+    ############################################################
+    ############ changing to factors ##################### #####
+    
+    data[sapply(data, is.integer)] <-                       #sapply is like lapply below
+        lapply(data[sapply(data, is.integer)], as.factor)   #taking data that is numeric and factorizing it
+            #lapply returns a list of same length of x, each element of which is 
+            #the result of applying FUNCTION to the corresponding element of x
+    checking(data) #worked
+    
+    #doing the same for certain categorical variables 
+    
+    data[,1:4] <- lapply(data[,1:4], as.factor)  #making columns 1-4 factors
+    data[,7] <- as.factor(data[,7])              #making column 7 a factor
+    checking(data) #worked
+    
+
+    str.data <- as_tibble(str(data))
+```
+
+```{r, rearranging}
+data <- relocate(data, c("value_isBEST", "value_best_num_var", "signif"), .before = exp_isNA)
+    data <- relocate(data, value_best_num_var, .before = value_isBEST)
+    #^ this is dplyr again
+    checking(data) #sexy. cols 11 through 65 are now just binary
+>
+```
+
+```{r}
+
+```
+
+ 
+
+## Subsetting
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+
+##################    SUBSETTING     #################################### ######
+    
+    #just the categorical variables 
+    checking(data)
+    datacat <- data[ , c(1:4,7:64)]
+    checking(datacat)
+    
+    #just the bigger groups of variables (with noncat)
+    checking(data)
+    datamain <- data[ , c(1:17,26,29,30,39,45,47:49,55,57,61)]
+    checking(datamain)
+    
+    # numerics 
+    datanum <- data[ , c("value", "exp_num_var", "value_best_num_var")]
+    datanum[,1:3] <- lapply(datanum[,1:3], as.numeric)
+    checking(datanum)
+    
+    #data.exp.other.m  = data for other explanatory variables to be in a matrix
+    data.exp.other.m <- data[ , c("exp_isBORDERTYPE", "exp_isNA", "exp_isTIME",
+                                  "exp_isSCALE", "exp_isPRED", "exp_isFIELD", 
+                                  "exp_isSBA", "exp_isOTHER",
+                                  
+                                  "signif", "value_isBEST", "value_best_num_var", 
+                                  "exp_num_var", "paper_ID", "resp_type_generalized"
+                              )]
+    checking(data.exp.other.m)
+    
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+################################################################################
+##################    NOTES          #################################### ######
+  
+    ############################################################
+    ################### Notes on variables ############### #####   
+    
+      #explanatory (chr)
+      #value      (num)
+    
+      ###################### ID ones  (factors)
+      
+      #paper_ID
+      #model_type
+      #year
+      #resp_type_generalized
+      #value_type
+      
+      ###################### strength ones (factors)
+      
+      #signif
+      #value_isBEST
+      #value_best_num_var 
+      
+      ###################### overall explanatory ones (factors)
+      
+      #exp_num_var    
+      
+      # isNA    isTIME    isSCALE   
+      
+      # isOTHER   SOYPRED   FUNGUS    isSBA   isPRED    isPREDTYPE    isFIELD
+      # isBORDERTYPE    
+      # border_buckthorn    isBORDERTPE_crops   isBORDERTYPE_grass    isBORDERTYPE_forest
+      
+      
+      ####################### explanatory ones delineated (factors)
+      
+      # isOTHER  
+          # plantnutrition  leaf_percK    leaf_perc_N   precipitation   growingdegreedays   
+          # functdiversity  aspect        intercept
+      # SOYPRED   
+      # FUNGUS    
+      # isSBA 
+          # captured_SBA    SBA_abundance
+      # isPRED    
+          # pred_migration   pred_withheld   pred_richness   pred_abundance
+          # predtype_lacewings   predtype_spiders    coccinellidae   parasitoids
+      # isPREDTYPE   
+          #p redtype_lacewings   predtype_spiders    coccinellidae   parasitoids
+      # isFIELD
+          # fieldID   fieldperimeter    fieldarea   fieldwidth    fieldtillage_notill
+      
+      
+      # isBORDERTYPE   
+          # border    landscape_complexity    bordertype_richness
+      # border_buckthorn    
+      #isBORDERTPE_crops   
+          # bordertype_alfalfa    bordertype_corn   bordertype_canola   
+          # bordertype_cereals   bordertype_soybean   bordertype_generalizedcrops
+      # isBORDERTYPE_grass  
+          # bordertype_grass    bordertype_prairie    bordertype_pasture
+      # isBORDERTYPE_forest
+          # bordertype_forestdistance   bordertype_forestproportion   forestdiversity
+    
+      
+```
